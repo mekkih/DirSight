@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DirSight Report</title>
+    <style>
+        :root {
+            --bg-body: #1e1e1e;
+            --bg-header: #000000;
+            --bg-sidebar: #252526;
+            --bg-toolbar: #252526;
+            --bg-row-even: #1e1e1e;
+            --bg-row-odd: #252526;
+            --bg-hover: #333337;
+            --bg-selected: #04395e;
+            --text-main: #cccccc;
+            --text-muted: #aaaaaa;
+            --color-accent: #4daafc;
+            --border: #3e3e42;
+        }
+
+        body.theme-light {
+            --bg-body: #f3f3f3;
+            --bg-header: #e1e1e1;
+            --bg-sidebar: #ffffff;
+            --bg-toolbar: #ffffff;
+            --bg-row-even: #f3f3f3;
+            --bg-row-odd: #fafafa;
+            --bg-hover: #eaeaea;
+            --bg-selected: #cde6f7;
+            --text-main: #2b2b2b;
+            --text-muted: #666666;
+            --color-accent: #007acc;
+            --border: #cccccc;
+        }
+
+        body.theme-midnight {
+            --bg-body: #120a1c;
+            --bg-header: #08030d;
+            --bg-sidebar: #1c122d;
+            --bg-toolbar: #1c122d;
+            --bg-row-even: #120a1c;
+            --bg-row-odd: #1c122d;
+            --bg-hover: #2d1b44;
+            --bg-selected: #4a154b;
+            --text-main: #e6e1f0;
+            --text-muted: #a89bbd;
+            --color-accent: #c678dd;
+            --border: #44355b;
+        }
+
+        body.theme-solarized {
+            --bg-body: #073642;
+            --bg-header: #002b36;
+            --bg-sidebar: #002b36;
+            --bg-toolbar: #002b36;
+            --bg-row-even: #073642;
+            --bg-row-odd: #083c48;
+            --bg-hover: #0a4857;
+            --bg-selected: #2aa198;
+            --text-main: #93a1a1;
+            --text-muted: #586e75;
+            --color-accent: #2aa198;
+            --border: #0a4f5e;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-body); color: var(--text-main); margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        #header { background: var(--bg-header); padding: 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+        #header h1 { font-weight: 300; color: #ffffff; margin: 0; font-size: 24px; transition: color 0.1s; }
+        #header .stats { color: var(--text-muted); font-size: 13px; }
+        #btn-home:hover, #header-title-container:hover h1 { color: var(--color-accent); }
+        
+        #main { display: flex; flex: 1; overflow: hidden; }
+        
+        #sidebar { width: 300px; background: var(--bg-sidebar); overflow-y: auto; position: relative; }
+        #resizer { width: 4px; background: var(--border); cursor: ew-resize; z-index: 10; transition: background 0.2s; }
+        #resizer:hover, #resizer.active { background: var(--color-accent); }
+        #content { flex: 1; background: var(--bg-body); display: flex; flex-direction: column; overflow: hidden; }
+        
+        .toolbar { padding: 8px 10px; background: var(--bg-toolbar); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; height: 32px; flex-wrap: wrap; }
+        .toolbar button { background: var(--border); color: var(--text-main); border: 1px solid var(--border); padding: 4px 10px; border-radius: 3px; cursor: pointer; transition: background 0.15s; }
+        .toolbar button:hover { background: var(--bg-hover); }
+        
+        /* Table Header */
+        #content-header { display: flex; background: var(--bg-toolbar); padding: 5px 10px; font-weight: bold; font-size: 13px; border-bottom: 1px solid var(--border); }
+        .col-check { width: 30px; text-align: center; display: none; }
+        .col-name { flex: 1; cursor: pointer; user-select: none; transition: color 0.1s; }
+        .col-name:hover, .col-size:hover, .col-date:hover { color: var(--color-accent); }
+        .col-size { width: 100px; text-align: right; cursor: pointer; user-select: none; padding-right:10px; transition: color 0.1s; }
+        .col-date { width: 180px; text-align: left; cursor: pointer; user-select: none; transition: color 0.1s; padding-left:10px; }
+        
+        /* Table Body */
+        #content-list { flex: 1; overflow-y: auto; position: relative; }
+        
+        /* Tree Row */
+        .tree-row { position: absolute; width: 100%; box-sizing: border-box; padding-left: 5px; display: flex; align-items: center; cursor: pointer; user-select: none; font-size: 14px; transition: background 0.1s; }
+        .tree-row:hover { background: var(--bg-hover); }
+        .tree-row.selected { background: var(--bg-selected); color: #fff; }
+        .icon { width: 20px; display: inline-block; text-align: center; margin-right: 5px; }
+        .name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .expander { width: 15px; display: inline-block; text-align: center; color: var(--text-muted); font-size: 0.8em; transition: color 0.1s; }
+        .expander:hover { color: #fff; }
+        
+        /* List Row */
+        .list-row { position: absolute; width: 100%; box-sizing: border-box; padding: 0 10px; display: flex; align-items: center; border-bottom: 1px solid var(--border); font-size: 14px; transition: background 0.1s; }
+        .list-row.even { background-color: var(--bg-row-even); }
+        .list-row.odd { background-color: var(--bg-row-odd); }
+        .list-row:hover { background-color: var(--bg-hover) !important; cursor: pointer; }
+        .list-row.selected { background-color: var(--bg-selected) !important; color: #fff; }
+        .list-row .col-name { flex: 1; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .list-row .col-size { width: 100px; text-align: right; color: var(--text-muted); padding-right:10px; }
+        .list-row .col-date { width: 180px; text-align: left; color: var(--text-muted); padding-left:10px; }
+        
+        /* Active Selection Mode */
+        .selection-mode-active .col-check { display: block; }
+        
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: var(--bg-body); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border: 3px solid var(--bg-body); border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--bg-hover); }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div class="icon" id="btn-home" style="font-size: 32px; width: auto; margin-right: 15px; cursor: pointer;" title="Go to Home">🗄️</div>
+        <div id="header-title-container" style="cursor: pointer;" title="Go to Home">
+            <h1 id="header-title">Snapshot</h1>
+            <div id="header-stats" class="stats">Loading data...</div>
+        </div>
+        <div style="flex:1"></div>
+        <input type="text" id="search-box" placeholder="Search current folder..." style="padding:6px 12px; border-radius:15px; border:1px solid var(--border); background:var(--bg-sidebar); color:var(--text-main); width: 250px; outline:none; transition:border-color 0.2s;">
+        <select id="theme-dropdown" style="margin-left:15px; background:var(--bg-sidebar); color:var(--text-main); border:1px solid var(--border); padding:6px 12px; border-radius:15px; outline:none; cursor:pointer;">
+            <option value="dark">Theme: Dark Modern</option>
+            <option value="light">Theme: Light Premium</option>
+            <option value="midnight">Theme: Midnight Purple</option>
+            <option value="solarized">Theme: Solarized Dark</option>
+        </select>
+        <div id="report-date" class="stats" style="margin-left:20px; text-align:right;"></div>
+    </div>
+    <div id="main">
+        <div id="sidebar"></div>
+        <div id="resizer"></div>
+        <div id="content">
+            <div class="toolbar">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:5px; color:var(--text-main); user-select:none;">
+                    <input type="checkbox" id="toggle-selection-mode"> Enable Selection
+                </label>
+                <div style="width:10px;"></div>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:5px; color:var(--text-main); user-select:none;">
+                    <input type="checkbox" id="toggle-tab-mode"> Enable Tabbed View
+                </label>
+                <div style="width:10px;"></div>
+                <button id="btn-select-all" style="display:none;">Select All</button>
+                <button id="btn-select-none" style="display:none;">Select None</button>
+                <span id="selection-stats" style="color: var(--color-accent); font-weight:bold; margin-left:10px;"></span>
+                <div style="flex:1"></div>
+                <select id="sort-dropdown" style="background:var(--bg-sidebar); color:var(--text-main); border:1px solid var(--border); padding:4px 8px; border-radius:3px; outline:none; cursor:pointer;">
+                    <option value="d">Sort by: Default (Folders First)</option>
+                    <option value="n-asc">Sort by: Name (A-Z)</option>
+                    <option value="n-desc">Sort by: Name (Z-A)</option>
+                    <option value="s-desc">Sort by: Size (Largest)</option>
+                    <option value="s-asc">Sort by: Size (Smallest)</option>
+                    <option value="m-desc">Sort by: Modified (Newest)</option>
+                    <option value="m-asc">Sort by: Modified (Oldest)</option>
+                </select>
+            </div>
+            <div id="tab-bar" style="display:none; align-items:center; background:var(--bg-toolbar); padding:4px 10px; border-bottom:1px solid var(--border); gap:5px; height:32px; overflow-x:auto;"></div>
+            <div id="content-header">
+                <div class="col-check"></div>
+                <div class="col-name" onclick="setSort('n')">Name <span id="sort-n"></span></div>
+                <div class="col-size" onclick="setSort('s')">Size <span id="sort-s"></span></div>
+                <div class="col-date" onclick="setSort('m')">Modified <span id="sort-m"></span></div>
+            </div>
+            <div id="content-list"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Non-blocking initialization
+        setTimeout(() => {
+            document.getElementById('header-stats').innerHTML = '<span style="color:var(--color-accent)">Processing dataset... Please wait...</span>';
+            
+            setTimeout(() => {
+                initApp();
+            }, 50);
+        }, 0);
+
+        const rawData = [{"d":true,"id":1,"m":0,"n":"Sample","p":0,"s":0},{"d":false,"id":2,"m":1570696638000,"n":"alass-cli.exe","p":1,"s":3502680},{"d":true,"id":3,"m":1779497844552,"n":"Data","p":1,"s":0},{"d":true,"id":4,"m":1779496551000,"n":"Documents","p":1,"s":0},{"d":false,"id":5,"m":1740531193252,"n":"engine.ini","p":1,"s":4816},{"d":false,"id":6,"m":1682174263000,"n":"Fonts.txt","p":1,"s":267},{"d":false,"id":7,"m":1740531193234,"n":"key.config","p":1,"s":23},{"d":false,"id":8,"m":1570696615000,"n":"LICENSE.txt","p":1,"s":35149},{"d":false,"id":9,"m":1734546208656,"n":"ReadMe.txt","p":1,"s":201},{"d":false,"id":10,"m":1682174263000,"n":"Themes.ini","p":1,"s":1286},{"d":true,"id":11,"m":1779496585532,"n":"Website","p":1,"s":0},{"d":false,"id":12,"m":1779493165640,"n":"database.json","p":3,"s":205},{"d":false,"id":13,"m":1779493165641,"n":"records.csv","p":3,"s":258},{"d":true,"id":14,"m":1779497844552,"n":"Test","p":3,"s":0},{"d":false,"id":15,"m":1755346662241,"n":"bandwidth-report.pdf","p":4,"s":8278},{"d":false,"id":16,"m":1751292151367,"n":"datasheet.pdf","p":4,"s":87437},{"d":true,"id":17,"m":1779493165640,"n":"Financials","p":4,"s":0},{"d":false,"id":18,"m":1752330907932,"n":"Monthly report.pdf","p":4,"s":46727671},{"d":false,"id":19,"m":1779493165639,"n":"readme.txt","p":4,"s":377},{"d":true,"id":20,"m":1779493165639,"n":"assets","p":11,"s":0},{"d":true,"id":21,"m":1779493165639,"n":"css","p":11,"s":0},{"d":false,"id":22,"m":1779493165639,"n":"index.html","p":11,"s":268},{"d":true,"id":23,"m":1779493165639,"n":"js","p":11,"s":0},{"d":false,"id":24,"m":1611698668000,"n":"style.min.css","p":11,"s":416},{"d":false,"id":25,"m":1611698668000,"n":"test.css","p":11,"s":228479},{"d":false,"id":26,"m":1779327845755,"n":"Code.zip","p":14,"s":165818312},{"d":false,"id":27,"m":1779493165640,"n":"Q1_Report.csv","p":17,"s":170},{"d":false,"id":28,"m":1779493165639,"n":"logo.svg","p":20,"s":184},{"d":false,"id":29,"m":1779493165639,"n":"styles.css","p":21,"s":186},{"d":false,"id":30,"m":1779493165639,"n":"app.js","p":23,"s":163}];
+        const reportTimeMs = 1779497861677;
+        const scanDurationSecs = 0;
+        const showFullPath = false;
+        
+        const nodeMap = new Map();
+        const childrenMap = new Map();
+        
+        let totalFiles = 0;
+        let totalFolders = 0;
+        let rootId = null;
+
+        function initApp() {
+            if (Array.isArray(rawData)) {
+                rawData.forEach(n => {
+                    n.expanded = false;
+                    nodeMap.set(n.id, n);
+                    if (!childrenMap.has(n.p)) childrenMap.set(n.p, []);
+                    childrenMap.get(n.p).push(n);
+                    
+                    if (n.d) totalFolders++;
+                    else totalFiles++;
+                    
+                    if (n.p === 0) rootId = n.id;
+                });
+            }
+
+            if (rootId) {
+                calculateSizes(rootId);
+            }
+
+            const rootNode = nodeMap.get(rootId);
+            let displayTitle = 'Disk';
+            if (rootNode) {
+                if (showFullPath) {
+                    displayTitle = rootNode.n;
+                } else {
+                    const pathParts = rootNode.n.split(/[\\/]/).filter(p => p.length > 0);
+                    displayTitle = pathParts.length > 0 ? pathParts[pathParts.length - 1] : rootNode.n;
+                }
+            }
+            document.getElementById('header-title').textContent = `Snapshot of ${displayTitle}`;
+            document.getElementById('header-stats').textContent = 
+                `${totalFiles.toLocaleString()} files in ${totalFolders.toLocaleString()} folders (${formatSize(rootNode ? rootNode.s : 0)})`;
+            if (reportTimeMs) {
+                document.getElementById('report-date').innerHTML = `Generated:<br/>${formatDate(reportTimeMs)}`;
+                if (scanDurationSecs !== null && scanDurationSecs !== undefined) {
+                    document.getElementById('report-date').innerHTML += `<br/><span style="color:#858585; font-size:12px;">Scan took: ${scanDurationSecs}s</span>`;
+                }
+            }
+            
+            if (rootId) nodeMap.get(rootId).expanded = true;
+            
+            // Set default theme switcher
+            document.getElementById('theme-dropdown').addEventListener('change', (e) => {
+                document.body.className = 'theme-' + e.target.value;
+            });
+            
+            updateTree();
+            renderList();
+        }
+
+        function formatDate(ms) {
+            if (!ms) return '';
+            const d = new Date(parseInt(ms));
+            const yyyy = d.getFullYear();
+            const MM = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            let h = d.getHours();
+            const m = String(d.getMinutes()).padStart(2, '0');
+            const s = String(d.getSeconds()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12;
+            h = String(h).padStart(2, '0');
+            return `${yyyy}-${MM}-${dd} ${h}:${m}:${s} ${ampm}`;
+        }
+
+        // 1. Calculate Folder Sizes
+        function calculateSizes(id) {
+            const node = nodeMap.get(id);
+            if (!node) return 0;
+            let size = node.d ? 0 : node.s;
+            const children = childrenMap.get(id);
+            if (children) {
+                for (const child of children) {
+                    size += calculateSizes(child.id);
+                }
+            }
+            if (node.d) node.s = size;
+            return size;
+        }
+
+        document.getElementById('search-box').addEventListener('focus', function() { this.style.borderColor = 'var(--color-accent)'; });
+        document.getElementById('search-box').addEventListener('blur', function() { this.style.borderColor = 'var(--border)'; });
+
+        function goHome() {
+            if (rootId) {
+                selectedNodeId = rootId;
+                selectedIds.clear();
+                updateSelectionStats();
+                document.getElementById('search-box').value = '';
+                filterText = '';
+                updateTree();
+                renderList();
+            }
+        }
+        document.getElementById('btn-home').onclick = goHome;
+        document.getElementById('header-title-container').onclick = goHome;
+
+        // 2. Tree View Logic (Sidebar)
+        let treeVisibleNodes = [];
+        let selectedNodeId = null;
+        
+        function updateTree() {
+            treeVisibleNodes = [];
+            function traverseTree(id, depth) {
+                const node = nodeMap.get(id);
+                if (node && node.d) { 
+                    node.depth = depth;
+                    treeVisibleNodes.push(node);
+                    if (node.expanded || depth === 0) { 
+                        const children = childrenMap.get(id);
+                        if (children) {
+                            children.sort((a, b) => a.n.localeCompare(b.n));
+                            children.forEach(c => {
+                                if (c.d) traverseTree(c.id, depth + 1);
+                            });
+                        }
+                    }
+                }
+            }
+            const roots = childrenMap.get(0) || [];
+            roots.forEach(r => traverseTree(r.id, 0));
+            renderTree();
+        }
+
+        const sidebar = document.getElementById('sidebar');
+        const treeContent = document.createElement('div');
+        sidebar.appendChild(treeContent);
+        const TREE_ROW_HEIGHT = 24;
+
+        function renderTree() {
+            const scrollTop = sidebar.scrollTop;
+            const viewportHeight = sidebar.clientHeight;
+            const startIndex = Math.max(0, Math.floor(scrollTop / TREE_ROW_HEIGHT) - 5);
+            const endIndex = Math.min(treeVisibleNodes.length - 1, Math.ceil((scrollTop + viewportHeight) / TREE_ROW_HEIGHT) + 5);
+
+            treeContent.style.height = `${treeVisibleNodes.length * TREE_ROW_HEIGHT}px`;
+            treeContent.innerHTML = '';
+
+            for (let i = startIndex; i <= endIndex; i++) {
+                const node = treeVisibleNodes[i];
+                if (!node) continue;
+                
+                const row = document.createElement('div');
+                row.className = 'tree-row' + (node.id === selectedNodeId ? ' selected' : '');
+                row.style.top = `${i * TREE_ROW_HEIGHT}px`;
+                row.style.height = `${TREE_ROW_HEIGHT}px`;
+                row.style.paddingLeft = `${node.depth * 15}px`;
+                
+                const children = childrenMap.get(node.id) || [];
+                const hasDirChildren = children.some(c => c.d);
+                let expanderText = hasDirChildren ? (node.expanded ? '▼' : '▶') : ' ';
+                
+                row.innerHTML = `
+                    <span class="expander">${expanderText}</span>
+                    <span class="icon">📁</span>
+                    <span class="name">${node.n}</span>
+                `;
+                
+                row.onclick = (e) => {
+                    if (e.target.className === 'expander' && hasDirChildren) {
+                        node.expanded = !node.expanded;
+                        updateTree();
+                    } else {
+                        if (tabbedViewMode) {
+                            createTab(node.id);
+                        } else {
+                            selectedNodeId = node.id;
+                            selectedIds.clear();
+                            updateSelectionStats();
+                            updateTree(); 
+                            renderList(); 
+                        }
+                    }
+                };
+                treeContent.appendChild(row);
+            }
+        }
+        sidebar.addEventListener('scroll', () => window.requestAnimationFrame(renderTree));
+
+        // Resizer Logic
+        const resizer = document.getElementById('resizer');
+        let isResizing = false;
+        resizer.addEventListener('mousedown', () => { isResizing = true; resizer.classList.add('active'); document.body.style.cursor = 'ew-resize'; });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = Math.max(150, Math.min(e.clientX, window.innerWidth - 300));
+            sidebar.style.width = `${newWidth}px`;
+            renderTree();
+            drawList();
+        });
+        document.addEventListener('mouseup', () => { isResizing = false; resizer.classList.remove('active'); document.body.style.cursor = ''; });
+
+        // Tabbed View System Logic
+        let tabbedViewMode = false;
+        let tabs = [];
+        let activeTabId = null;
+
+        document.getElementById('toggle-tab-mode').addEventListener('change', (e) => {
+            tabbedViewMode = e.target.checked;
+            const tabBar = document.getElementById('tab-bar');
+            tabBar.style.display = tabbedViewMode ? 'flex' : 'none';
+            if (tabbedViewMode) {
+                if (tabs.length === 0) {
+                    createTab(selectedNodeId);
+                }
+                renderTabs();
+            } else {
+                tabs = [];
+                activeTabId = null;
+                renderList();
+                updateTree();
+            }
+        });
+
+        function createTab(nodeId) {
+            const node = nodeMap.get(nodeId);
+            const name = node ? node.n : 'Home';
+            const tabId = Date.now() + Math.random().toString(36).substr(2, 9);
+            tabs.push({ id: tabId, name, nodeId });
+            activeTabId = tabId;
+            selectedNodeId = nodeId;
+            renderTabs();
+            renderList();
+            updateTree();
+        }
+
+        function renderTabs() {
+            const tabBar = document.getElementById('tab-bar');
+            tabBar.innerHTML = '';
+            tabs.forEach(tab => {
+                const isActive = tab.id === activeTabId;
+                const tabEl = document.createElement('div');
+                tabEl.style.cssText = `
+                    padding: 4px 12px;
+                    background: ${isActive ? 'var(--bg-body)' : 'var(--bg-toolbar)'};
+                    border: 1px solid var(--border);
+                    border-bottom: ${isActive ? 'none' : '1px solid var(--border)'};
+                    border-radius: 4px 4px 0 0;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: ${isActive ? 'var(--color-accent)' : 'var(--text-muted)'};
+                `;
+                
+                tabEl.innerHTML = `
+                    <span>📁 ${tab.name}</span>
+                    <span class="tab-close" style="cursor:pointer; font-weight:bold; font-size:14px;">&times;</span>
+                `;
+                
+                tabEl.onclick = (e) => {
+                    if (e.target.classList.contains('tab-close')) {
+                        e.stopPropagation();
+                        closeTab(tab.id);
+                    } else {
+                        activeTabId = tab.id;
+                        selectedNodeId = tab.nodeId;
+                        renderTabs();
+                        renderList();
+                        updateTree();
+                    }
+                };
+                tabBar.appendChild(tabEl);
+            });
+        }
+
+        function closeTab(tabId) {
+            const idx = tabs.findIndex(t => t.id === tabId);
+            if (idx === -1) return;
+            tabs.splice(idx, 1);
+            if (tabs.length === 0) {
+                createTab(rootId);
+                return;
+            }
+            if (activeTabId === tabId) {
+                const newActive = tabs[Math.max(0, idx - 1)];
+                activeTabId = newActive.id;
+                selectedNodeId = newActive.nodeId;
+            }
+            renderTabs();
+            renderList();
+            updateTree();
+        }
+
+        // 3. List View Logic (Content Pane)
+        const contentList = document.getElementById('content-list');
+        const listContent = document.createElement('div');
+        contentList.appendChild(listContent);
+        
+        const LIST_ROW_HEIGHT = 28;
+        let listNodes = [];
+        let sortCol = 'd'; 
+        let sortAsc = true;
+        let filterText = "";
+        let selectedIds = new Set();
+        let selectionMode = false;
+
+        document.getElementById('toggle-selection-mode').addEventListener('change', (e) => {
+            selectionMode = e.target.checked;
+            document.getElementById('content-header').classList.toggle('selection-mode-active', selectionMode);
+            contentList.classList.toggle('selection-mode-active', selectionMode);
+            document.getElementById('btn-select-all').style.display = selectionMode ? 'block' : 'none';
+            document.getElementById('btn-select-none').style.display = selectionMode ? 'block' : 'none';
+            
+            if (!selectionMode) {
+                selectedIds.clear();
+                updateSelectionStats();
+            }
+            drawList();
+        });
+
+        const sortDropdown = document.getElementById('sort-dropdown');
+        sortDropdown.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'd') { sortCol = 'd'; sortAsc = true; }
+            else {
+                const parts = val.split('-');
+                sortCol = parts[0];
+                sortAsc = (parts[1] === 'asc');
+            }
+            
+            document.getElementById('sort-n').textContent = '';
+            document.getElementById('sort-s').textContent = '';
+            document.getElementById('sort-m').textContent = '';
+            if (sortCol !== 'd') {
+                document.getElementById(`sort-${sortCol}`).textContent = sortAsc ? '▲' : '▼';
+            }
+            renderList();
+        });
+
+        function setSort(col) {
+            if (sortCol === col) sortAsc = !sortAsc;
+            else { sortCol = col; sortAsc = true; }
+            
+            document.getElementById('sort-n').textContent = '';
+            document.getElementById('sort-s').textContent = '';
+            document.getElementById('sort-m').textContent = '';
+            document.getElementById(`sort-${col}`).textContent = sortAsc ? '▲' : '▼';
+            
+            sortDropdown.value = col + '-' + (sortAsc ? 'asc' : 'desc');
+            
+            renderList();
+        }
+
+        document.getElementById('search-box').addEventListener('input', (e) => {
+            filterText = e.target.value.toLowerCase();
+            renderList();
+        });
+
+        document.getElementById('btn-select-all').onclick = () => {
+            listNodes.forEach(n => { if(!n.isUpNode) selectedIds.add(n.id); });
+            updateSelectionStats();
+            drawList();
+        };
+
+        document.getElementById('btn-select-none').onclick = () => {
+            selectedIds.clear();
+            updateSelectionStats();
+            drawList();
+        };
+
+        function updateSelectionStats() {
+            let count = 0; let size = 0;
+            selectedIds.forEach(id => {
+                const node = nodeMap.get(id);
+                if (node) { count++; size += node.s; }
+            });
+            document.getElementById('selection-stats').textContent = count > 0 ? `${count} selected (${formatSize(size)})` : '';
+        }
+
+        function renderList() {
+            let baseNodes = childrenMap.get(selectedNodeId) || [];
+            
+            if (filterText) {
+                listNodes = baseNodes.filter(n => n.n.toLowerCase().includes(filterText));
+            } else {
+                listNodes = [...baseNodes];
+            }
+            
+            listNodes.sort((a, b) => {
+                let valA, valB;
+                if (sortCol === 'd') { 
+                    if (a.d !== b.d) return a.d ? -1 : 1;
+                    return a.n.localeCompare(b.n);
+                } else if (sortCol === 'n') {
+                    valA = a.n.toLowerCase(); valB = b.n.toLowerCase();
+                } else if (sortCol === 's') {
+                    valA = a.s; valB = b.s;
+                } else if (sortCol === 'm') {
+                    valA = a.m || 0; valB = b.m || 0;
+                }
+                
+                if (valA < valB) return sortAsc ? -1 : 1;
+                if (valA > valB) return sortAsc ? 1 : -1;
+                return 0;
+            });
+            
+            if (selectedNodeId !== rootId && !filterText) {
+                listNodes.unshift({ id: -1, n: '..', d: true, s: null, m: null, isUpNode: true });
+            }
+            
+            drawList();
+        }
+
+        function drawList() {
+            const scrollTop = contentList.scrollTop;
+            const viewportHeight = contentList.clientHeight;
+            const startIndex = Math.max(0, Math.floor(scrollTop / LIST_ROW_HEIGHT) - 5);
+            const endIndex = Math.min(listNodes.length - 1, Math.ceil((scrollTop + viewportHeight) / LIST_ROW_HEIGHT) + 5);
+
+            listContent.style.height = `${listNodes.length * LIST_ROW_HEIGHT}px`;
+            listContent.innerHTML = '';
+
+            for (let i = startIndex; i <= endIndex; i++) {
+                const node = listNodes[i];
+                if (!node) continue;
+                
+                const row = document.createElement('div');
+                const isSelected = selectedIds.has(node.id);
+                const isEven = i % 2 === 0;
+                
+                if (node.isUpNode) {
+                    row.className = 'list-row' + (isEven ? ' even' : ' odd');
+                    row.style.top = `${i * LIST_ROW_HEIGHT}px`;
+                    row.style.height = `${LIST_ROW_HEIGHT}px`;
+                    row.innerHTML = `
+                        <div class="col-check"></div>
+                        <div class="col-name" style="font-weight:bold; font-size: 16px;">
+                            <span class="icon" style="margin-right:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg></span>
+                            ..
+                        </div>
+                        <div class="col-size"></div>
+                        <div class="col-date"></div>
+                    `;
+                    row.onclick = () => {
+                        const parentNodeId = nodeMap.get(selectedNodeId).p;
+                        if (parentNodeId !== undefined) {
+                            selectedNodeId = parentNodeId;
+                            selectedIds.clear();
+                            updateSelectionStats();
+                            document.getElementById('search-box').value = '';
+                            filterText = '';
+                            updateTree();
+                            renderList();
+                        }
+                    };
+                    listContent.appendChild(row);
+                    continue;
+                }
+
+                row.className = 'list-row' + (isSelected ? ' selected' : '') + (isEven ? ' even' : ' odd');
+                row.style.top = `${i * LIST_ROW_HEIGHT}px`;
+                row.style.height = `${LIST_ROW_HEIGHT}px`;
+                
+                const dateStr = node.m ? formatDate(node.m) : '';
+                
+                row.innerHTML = `
+                    <div class="col-check" onclick="toggleSelectRow(event, ${node.id})">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} style="pointer-events:none;">
+                    </div>
+                    <div class="col-name">
+                        <span class="icon">${node.d ? '📁' : '📄'}</span>
+                        ${node.n}
+                    </div>
+                    <div class="col-size">${formatSize(node.s)}</div>
+                    <div class="col-date">${dateStr}</div>
+                `;
+                
+                row.onclick = (e) => {
+                    if (e.target.closest('.col-check')) return; 
+
+                    if (node.d) {
+                        if (tabbedViewMode) {
+                            createTab(node.id);
+                        } else {
+                            node.expanded = true;
+                            selectedNodeId = node.id;
+                            selectedIds.clear();
+                            updateSelectionStats();
+                            document.getElementById('search-box').value = '';
+                            filterText = '';
+                            updateTree();
+                            renderList();
+                        }
+                    }
+                };
+                
+                listContent.appendChild(row);
+            }
+        }
+        contentList.addEventListener('scroll', () => window.requestAnimationFrame(drawList));
+
+        // Global function for checkbox clicking
+        window.toggleSelectRow = function(e, id) {
+            e.stopPropagation();
+            if (selectedIds.has(id)) selectedIds.delete(id);
+            else selectedIds.add(id);
+            updateSelectionStats();
+            drawList();
+        };
+
+        function formatSize(bytes) {
+            if (bytes === 0 || bytes == null) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
